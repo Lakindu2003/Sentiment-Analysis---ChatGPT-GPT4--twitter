@@ -1,0 +1,156 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+##LIBRARIES
+```{r}
+library(dplyr)
+library(tidyr)
+library(tidytext)
+library(textdata)
+library(ggplot2)
+library(ggthemes)
+library(scales)
+data("stop_words")
+```
+
+##DATASETS
+```{r}
+tweets <- read.csv(file = "tweets.csv")
+tweets <- tweets |> select(text)
+```
+
+#EXTRACTING TWEETS
+```{r}
+extract_words <- function(string) {
+  words <- tolower(gsub("[^[:alpha:]]+", " ", string))
+  words <- unlist(strsplit(words, split = "\\s+"))
+  words <- words[words != ""]
+  return(words)
+}
+
+all_words <- unlist(lapply(tweets$text, extract_words))
+```
+
+##SENTIMENTAL ANALYSIS OF TWEETS NRC
+```{r}
+sentiments_nrc <- get_sentiments(lexicon = "nrc")
+words_nrc <- data.frame(word = all_words) |>
+  unnest_tokens(output = word, input = word) |>
+  anti_join(y = stop_words, by = "word") |>
+  inner_join(y = sentiments_nrc, by = "word")
+head(words_nrc)
+```
+
+```{r}
+top_n_nrc <- words_nrc |> 
+  group_by(sentiment) |>
+  count(word, sentiment) |>
+  top_n(1) |>
+  slice_max(n = 1, order_by = n) |>
+  ungroup() |>
+  select(sentiment, word)
+  
+words_nrc |> count(sentiment) |>
+  full_join(top_n_nrc)
+top_n_nrc
+```
+
+```{r}
+words_nrc |> count(sentiment) |>
+  ggplot(aes(x = reorder(sentiment, -n), y = n, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  scale_y_continuous(labels = number_format()) +
+  labs(y = "Number of Words",
+       x = "Sentiments",
+       title = "Most common sentiments in tweets about GPTs") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_text(aes(label = n, vjust = -0.3))
+```
+
+
+##SENTIMENTAL ANALYSIS OF TWEETS AFINN
+```{r}
+sentiments_afinn <- get_sentiments(lexicon = "afinn")
+words_afinn <- data.frame(word = all_words) |>
+  unnest_tokens(output = word, input = word) |>
+  anti_join(y = stop_words, by = "word") |>
+  inner_join(y = sentiments_afinn, by = "word") |>
+  count(value, word) |>
+  arrange(desc(n)) |>
+  group_by(value) |>
+  top_n(n = 1, wt = n) |>
+  arrange(value)
+head(words_afinn)
+```
+
+```{r}
+words_afinn |> ggplot(aes(x = value,y=n, fill = word)) +
+  geom_col() +
+  labs(x="Sentiment Value", y="Word Count",title = "Most common word for each Sentiment Value") +
+  scale_x_continuous(breaks=seq(-5,5,1)) + 
+  geom_text(aes(label = n, vjust = -0.3)) 
+```
+
+
+
+<!-- #USELESS -->
+
+<!-- ##EXTRACTING HASHTAGS -->
+<!-- ```{r} -->
+<!-- # extract_words <- function(string) { -->
+<!-- #   string <- gsub("\\[|\\]|'", "", string) -->
+<!-- #   words <- unlist(strsplit(string, split = ",\\s*")) -->
+<!-- #   words <- tolower(trimws(words)) -->
+<!-- #   return(words) -->
+<!-- # } -->
+<!-- #  -->
+<!-- # all_hashtags <- unlist(lapply(tweets$hashtags, extract_words)) -->
+<!-- ``` -->
+<!-- ##HASHTAGS -->
+
+<!-- ```{r} -->
+<!-- # hashtag <- data.frame(hashtag = names(table(all_hashtags)), count = as.vector(table(all_hashtags))) -->
+<!-- # hashtag |> top_n(n = 20, wt = count) |> -->
+<!-- #   ggplot(aes(y = count, x = hashtag)) + -->
+<!-- #   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + -->
+<!-- #   geom_col() -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # ggplot(top_n_nrc, aes(x = reorder(sentiment, -n), y = n, fill = sentiment)) + -->
+<!-- #   geom_col() + -->
+<!-- #   scale_y_continuous(labels = number_format()) + -->
+<!-- #   labs(y = "Number of Words", -->
+<!-- #        x = "Sentiments", -->
+<!-- #        title = "Most common sentiments and words in tweets about GPTs") + -->
+<!-- #   theme_minimal() + -->
+<!-- #   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + -->
+<!-- #   geom_text(aes(label = word, vjust = -0.3), size = 3, color = "black") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # words_nrc |> count(sentiment) |> full_join(top_n_nrc) |> -->
+<!-- #   ggplot(aes(x = reorder(sentiment, -n), y = n, fill = word)) + -->
+<!-- #   geom_col(show.legend = TRUE) + -->
+<!-- #   scale_y_continuous(labels = number_format()) + -->
+<!-- #   labs(y = "Number of Words", -->
+<!-- #        x = "Sentiments", -->
+<!-- #        title = "Most common sentiments in tweets about GPTs", -->
+<!-- #        col = "Most common word") + -->
+<!-- #   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + -->
+<!-- #   geom_text(aes(label = n, vjust = -0.3)) -->
+
+<!-- ``` -->
